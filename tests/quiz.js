@@ -5,6 +5,23 @@
   const bank = questions.slice();
   const snapshot = JSON.stringify(questions);
   const originalRandom = Math.random;
+  const originalStorage = Object.getOwnPropertyDescriptor(window, "localStorage");
+  let storedBest = null;
+  let writes = 0;
+  const storage = {
+    getItem(key) {
+      assert(key === personalBestKey, "Read the dedicated personal-best key");
+      return storedBest;
+    },
+    setItem(key, value) {
+      assert(key === personalBestKey, "Write the dedicated personal-best key");
+      storedBest = value;
+      writes++;
+    }
+  };
+  const useStorage = (value) => Object.defineProperty(window, "localStorage", {
+    configurable: true, get: () => value
+  });
   let assertions = 0;
   const check = (condition, message) => {
     assert(condition, message);
@@ -26,6 +43,7 @@
   };
 
   try {
+    useStorage(storage);
     check(current === 0 && score === 0 && !answered, "Run checks at the start of an attempt");
     checkOrder(attemptQuestions);
     checkProgress(0);
@@ -44,7 +62,10 @@
     Math.random = originalRandom;
 
     const attempts = [];
-    for (const targetScore of [0, 4, 5, 7, 8, 10]) {
+    let expectedBest = null;
+    for (const targetScore of [0, 4, 5, 7, 8, 10, 10, 3]) {
+      const previousBest = storedBest;
+      const previousWrites = writes;
       const previousOrder = attemptQuestions;
       draws = 0;
       Math.random = () => { draws++; return originalRandom(); };
@@ -94,6 +115,7 @@
         check(score === expectedScore && $("feedback").children.length === 2, "Duplicate answers do not score or repeat feedback");
         check(attemptQuestions.every((record, j) => record === order[j]), "Answering does not reshuffle");
         check($("next-label").textContent === (i === 9 ? "See my results" : "Next question"), "Final-question continuation label");
+        check(storedBest === previousBest && writes === previousWrites, "Unfinished attempts never save a best, including the last answer");
         $("next").click();
         check(attemptQuestions.every((record, j) => record === order[j]), "Advancing does not reshuffle");
         check(document.activeElement === (i === 9 ? $("result-title") : $("question")), "Advancement focus");
@@ -105,16 +127,63 @@
       check($("wrong-count").textContent === String(10 - targetScore), "Result incorrect count");
       check($("result-score").textContent === `${targetScore} / 10`, "Result score total");
       check($("accuracy").textContent === `${targetScore * 10}%`, "Result accuracy");
+      const improved = expectedBest === null || targetScore > expectedBest;
+      expectedBest = expectedBest === null ? targetScore : Math.max(expectedBest, targetScore);
+      check(storedBest === String(expectedBest), "Only a higher completed score replaces the saved best");
+      check(writes === previousWrites + Number(improved), "Tied and lower scores do not write storage");
+      check($("personal-best").textContent === `${expectedBest} / 10`, "Results show the browser-local best, including zero");
+      check($("storage-note").textContent.includes("Not synced"), "Storage scope is explicit");
       check($("result-title").textContent === (targetScore >= 8 ? "You're a cosmic pro!" :
         targetScore >= 5 ? "A star in the making!" : "Your journey is just beginning!"), "Result-tier boundaries");
       checkProgress(10);
       checkOrder(attemptQuestions);
       attempts.push({ score: targetScore, questions: seen.map((item) => item.question) });
     }
+    const complete = (targetScore) => {
+      $("restart").click();
+      for (let i = 0; i < questions.length; i++) {
+        const item = attemptQuestions[current];
+        $("options").children[i < targetScore ? item.answer : (item.answer + 1) % item.options.length].click();
+        $("next").click();
+      }
+    };
+    for (const invalid of [null, "", " ", "NaN", "Infinity", "-1", "11", "4.5", "04", "4 points", "null", "{}"]) {
+      storedBest = invalid;
+      const previousWrites = writes;
+      complete(4);
+      check(storedBest === "4" && writes === previousWrites + 1, "Missing or invalid best is replaced on completion");
+      check($("personal-best").textContent === "4 / 10", "Invalid values never appear as scores");
+    }
+    storedBest = "9";
+    complete(4);
+    check($("personal-best").textContent === "9 / 10", "A pre-existing saved best is read on completion");
+
+    const unavailable = () => { throw new DOMException("Storage blocked for test", "SecurityError"); };
+    const failures = [
+      () => Object.defineProperty(window, "localStorage", { configurable: true, get: unavailable }),
+      () => useStorage({ getItem: unavailable, setItem: storage.setItem }),
+      () => useStorage({ getItem: () => null, setItem: unavailable })
+    ];
+    for (const fail of failures) {
+      fail();
+      complete(5);
+      check($("personal-best").textContent === "Unavailable", "Storage failure never claims a saved score");
+      check($("storage-note").textContent.includes("Personal best cannot be saved"), "Storage failure is visible");
+      check($("result-score").textContent === "5 / 10", "Storage failure does not break scoring");
+      check(document.activeElement === $("result-title"), "Storage failure preserves results focus");
+      $("restart").click();
+      check(current === 0 && score === 0 && !$("quiz").hidden, "Storage failure does not break replay");
+    }
+    useStorage(storage);
+    storedBest = null;
+    complete(6);
+    check(storedBest === "6" && $("personal-best").textContent === "6 / 10", "Saving recovers when storage becomes available");
     console.log(`Passed ${assertions} quiz assertions across ${attempts.length} attempts.`, attempts);
     return { assertions, attempts };
   } finally {
     Math.random = originalRandom;
+    if (originalStorage) Object.defineProperty(window, "localStorage", originalStorage);
+    else delete window.localStorage;
     $("restart").click();
   }
 })();
