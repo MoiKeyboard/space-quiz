@@ -127,6 +127,10 @@
     .result-stats strong { display: block; font-size: 20px; }
     .result-stats small { color: var(--muted); font-size: 11px; }
     .result-stats > div + div { border-left: 1px solid var(--line); }
+    .personal-best { margin-top: 18px; padding: 13px 15px; border-radius: 10px; background: var(--soft); color: var(--console-muted); font-size: 13px; }
+    .personal-best p { margin: 0; }
+    .personal-best strong { color: var(--text); white-space: nowrap; }
+    .personal-best .storage-note { margin-top: 5px; font-size: 12px; }
     #correct-count { color: var(--green); }
     #wrong-count { color: var(--red); }
     .answer-review { margin-top: 21px; text-align: left; overflow-wrap: break-word; }
@@ -232,6 +236,10 @@
           <div><strong id="wrong-count"></strong><small>Incorrect</small></div>
           <div><strong id="accuracy"></strong><small>Accuracy</small></div>
         </div>
+        <div class="personal-best" role="status" aria-live="polite" aria-atomic="true">
+          <p>Personal best on this browser: <strong id="personal-best"></strong></p>
+          <p class="storage-note" id="storage-note"></p>
+        </div>
         <details class="answer-review" id="answer-review">
           <summary>Review answers</summary>
           <ol class="review-list" id="review-list"></ol>
@@ -335,6 +343,28 @@
     let current = 0;
     let score = 0;
     let answered = false;
+    const personalBestKey = "orbit.personalBest";
+
+    function updatePersonalBest() {
+      try {
+        const storage = window.localStorage;
+        const stored = storage.getItem(personalBestKey);
+        const value = Number(stored);
+        const best = stored !== null && stored === String(value) &&
+          Number.isInteger(value) && value >= 0 && value <= questions.length
+          ? value : null;
+        const nextBest = best === null ? score : Math.max(best, score);
+        if (best === null || score > best) {
+          storage.setItem(personalBestKey, String(nextBest));
+        }
+        $("personal-best").textContent = `${nextBest} / ${questions.length}`;
+        $("storage-note").textContent = "Saved only in this browser. Not synced to an account or another device.";
+      } catch (error) {
+        $("personal-best").textContent = "Unavailable";
+        $("storage-note").textContent = "Personal best cannot be saved because browser storage is unavailable. Your quiz score is unaffected.";
+        console.warn("Unable to save Orbit personal best:", error);
+      }
+    }
 
     function renderQuestion(focus = false) {
       answered = false;
@@ -458,6 +488,7 @@
       $("correct-count").textContent = score;
       $("wrong-count").textContent = questions.length - score;
       $("accuracy").textContent = `${score * 10}%`;
+      updatePersonalBest();
       renderReview();
       $("result-title").focus();
     }
