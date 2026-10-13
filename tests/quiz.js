@@ -77,6 +77,8 @@
       const order = attemptQuestions.slice();
       const seen = [];
       check(current === 0 && score === 0 && !answered, "Restart resets quiz state");
+      check(selectedAnswers.length === 0 && $("review-list").children.length === 0, "Restart clears selected answers and review");
+      check(!$("answer-review").open, "Restart collapses the answer review");
       check(!$("quiz").hidden && $("results").hidden, "Restart restores the quiz view");
       check(document.activeElement === $("question"), "Restart focuses the question");
       checkProgress(0);
@@ -113,6 +115,7 @@
         buttons[selected].dispatchEvent(new MouseEvent("click"));
         selectAnswer(item.answer);
         check(score === expectedScore && $("feedback").children.length === 2, "Duplicate answers do not score or repeat feedback");
+        check(selectedAnswers[i] === selected, "Duplicate answers do not change the recorded selection");
         check(attemptQuestions.every((record, j) => record === order[j]), "Answering does not reshuffle");
         check($("next-label").textContent === (i === 9 ? "See my results" : "Next question"), "Final-question continuation label");
         check(storedBest === previousBest && writes === previousWrites, "Unfinished attempts never save a best, including the last answer");
@@ -133,6 +136,20 @@
       check(writes === previousWrites + Number(improved), "Tied and lower scores do not write storage");
       check($("personal-best").textContent === `${expectedBest} / 10`, "Results show the browser-local best, including zero");
       check($("storage-note").textContent.includes("Not synced"), "Storage scope is explicit");
+      check($("review-list").children.length === questions.length, "Personal-best results also contain all reviewed answers");
+      check(!$("answer-review").open, "Answer review starts collapsed");
+      Array.from($("review-list").children).forEach((entry, i) => {
+        const item = order[i];
+        const selected = i < targetScore ? item.answer : (item.answer + 1) % item.options.length;
+        check(entry.querySelector("h3").textContent === item.question, "Review follows the displayed attempt order");
+        check(entry.querySelector(".review-status").textContent === (i < targetScore ? "Correct" : "Incorrect"), "Review correctness matches scoring");
+        const answers = entry.querySelectorAll("p");
+        check(answers[0].textContent === `Your answer: ${item.options[selected]}`, "Review preserves the chosen answer");
+        check(answers[1].textContent === `Correct answer: ${item.options[item.answer]}`, "Review shows the correct answer");
+        check(entry.querySelector(".review-fact").textContent === item.fact, "Review preserves the explanation");
+      });
+      $("answer-review").querySelector("summary").click();
+      check($("answer-review").open, "Answer review expands on demand");
       check($("result-title").textContent === (targetScore >= 8 ? "You're a cosmic pro!" :
         targetScore >= 5 ? "A star in the making!" : "Your journey is just beginning!"), "Result-tier boundaries");
       checkProgress(10);
@@ -170,6 +187,7 @@
       check($("personal-best").textContent === "Unavailable", "Storage failure never claims a saved score");
       check($("storage-note").textContent.includes("Personal best cannot be saved"), "Storage failure is visible");
       check($("result-score").textContent === "5 / 10", "Storage failure does not break scoring");
+      check($("review-list").children.length === questions.length, "Storage failure does not break answer review");
       check(document.activeElement === $("result-title"), "Storage failure preserves results focus");
       $("restart").click();
       check(current === 0 && score === 0 && !$("quiz").hidden, "Storage failure does not break replay");

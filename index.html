@@ -52,7 +52,7 @@
       -webkit-font-smoothing: antialiased;
     }
     button { font: inherit; }
-    button:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+    button:focus-visible, summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
     [hidden] { display: none !important; }
     .page { width: min(100% - 40px, 510px); margin: 0 auto; padding: 38px 0 28px; }
     .brand { display: flex; align-items: center; justify-content: center; gap: 9px; font-size: 23px; font-weight: 750; letter-spacing: -1px; }
@@ -133,6 +133,18 @@
     .personal-best .storage-note { margin-top: 5px; font-size: 12px; }
     #correct-count { color: var(--green); }
     #wrong-count { color: var(--red); }
+    .answer-review { margin-top: 21px; text-align: left; overflow-wrap: break-word; }
+    .answer-review summary { padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--soft); font-weight: 650; cursor: pointer; }
+    .review-list { margin: 18px 0 0; padding-left: 24px; }
+    .review-list li { padding: 0 0 18px 4px; }
+    .review-list li + li { padding-top: 18px; border-top: 1px solid var(--line); }
+    .review-list li:last-child { padding-bottom: 0; }
+    .review-list h3 { margin: 0 0 8px; font-size: 15px; line-height: 1.5; font-weight: 650; }
+    .review-list p { margin: 6px 0 0; font-size: 13px; }
+    .review-status { display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 12px; font-weight: 650; }
+    .review-status.correct { color: var(--green); background: var(--green-soft); }
+    .review-status.wrong { color: var(--red); background: var(--red-soft); }
+    .review-fact { color: var(--console-muted); }
     .question-enter { animation: arrive .3s ease; }
     @keyframes float { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-7px) rotate(2deg); } }
     @keyframes twinkle { from { opacity: .35; } to { opacity: 1; } }
@@ -228,6 +240,10 @@
           <p>Personal best on this browser: <strong id="personal-best"></strong></p>
           <p class="storage-note" id="storage-note"></p>
         </div>
+        <details class="answer-review" id="answer-review">
+          <summary>Review answers</summary>
+          <ol class="review-list" id="review-list"></ol>
+        </details>
         <button class="next" id="restart">Explore again <span aria-hidden="true">↻</span></button>
         <p class="hint">The universe always has more to teach us.</p>
       </div>
@@ -323,6 +339,7 @@
 
     const $ = (id) => document.getElementById(id);
     let attemptQuestions = shuffleQuestions();
+    let selectedAnswers = [];
     let current = 0;
     let score = 0;
     let answered = false;
@@ -390,6 +407,7 @@
       if (answered) return;
       answered = true;
       const item = attemptQuestions[current];
+      selectedAnswers[current] = index;
       const correct = index === item.answer;
       if (correct) score++;
       const buttons = Array.from($("options").children);
@@ -422,6 +440,36 @@
       $("next").focus({ preventScroll: true });
     }
 
+    function renderReview() {
+      $("review-list").replaceChildren();
+      attemptQuestions.forEach((item, index) => {
+        const selected = selectedAnswers[index];
+        const correct = selected === item.answer;
+        const entry = document.createElement("li");
+        const heading = document.createElement("h3");
+        heading.textContent = item.question;
+        const status = document.createElement("span");
+        status.className = `review-status ${correct ? "correct" : "wrong"}`;
+        status.textContent = correct ? "Correct" : "Incorrect";
+        entry.append(heading, status);
+        [
+          ["Your answer: ", item.options[selected]],
+          ["Correct answer: ", item.options[item.answer]]
+        ].forEach(([label, text]) => {
+          const answer = document.createElement("p");
+          const labelNode = document.createElement("strong");
+          labelNode.textContent = label;
+          answer.append(labelNode, document.createTextNode(text));
+          entry.append(answer);
+        });
+        const fact = document.createElement("p");
+        fact.className = "review-fact";
+        fact.textContent = item.fact;
+        entry.append(fact);
+        $("review-list").append(entry);
+      });
+    }
+
     function showResults() {
       $("quiz").hidden = true;
       $("results").hidden = false;
@@ -441,6 +489,7 @@
       $("wrong-count").textContent = questions.length - score;
       $("accuracy").textContent = `${score * 10}%`;
       updatePersonalBest();
+      renderReview();
       $("result-title").focus();
     }
 
@@ -451,6 +500,9 @@
     });
     $("restart").addEventListener("click", () => {
       attemptQuestions = shuffleQuestions();
+      selectedAnswers = [];
+      $("answer-review").open = false;
+      $("review-list").replaceChildren();
       current = 0;
       score = 0;
       $("results").hidden = true;
