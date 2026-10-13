@@ -8,7 +8,7 @@ Open `index.html` directly in a browser. The app is self-contained: its styles, 
 
 Orbit is a single-page, ten-question space quiz implemented entirely in `index.html` using native DOM APIs. The document contains the quiz and results views; their visibility is controlled with `hidden`. The inline stylesheet defines the visual system, and the script at the end of the body initializes the quiz.
 
-- `questions` holds ordered records with `category`, `question`, `options`, a zero-based `answer` index, and an explanatory `fact`.
+- `questions` is the canonical bank of records with `category`, `question`, `options`, a zero-based `answer` index, and an explanatory `fact`. `shuffleQuestions()` uses Fisher-Yates on a copy; `attemptQuestions` holds the fixed order for the current attempt, created on initial load and each Restart. Option order and the canonical bank are unchanged; consecutive attempts may have the same order by chance.
 - `current`, `score`, and `answered` hold in-memory session state. `renderQuestion()` builds option buttons and resets per-question feedback; `selectAnswer()` locks the answer, scores it, reveals the correct option and fact, and enables continuation.
 - The Next handler advances questions or calls `showResults()`. Restart resets state and progress before rendering the first question. Reloading also starts a new quiz.
 
@@ -23,5 +23,7 @@ Orbit is a single-page, ten-question space quiz implemented entirely in `index.h
 - The global `[hidden]` rule uses `display: none !important` so component display styles do not expose inactive views or feedback.
 
 ## Browser checks
+
+For dependency-free regression checks, open `index.html` in a browser and paste the contents of `tests/quiz.js` into the developer console. The checks exercise the live DOM and leave the quiz at the start of a fresh attempt.
 
 Exercise correct and incorrect answers, repeated-answer prevention, Next gating, final-question results, and Restart. Check result messaging at scores 4/5 and 7/8, along with score totals and accuracy. Verify progress starts at 0%, advances only after answering, reaches 100%, and resets on Restart. Check keyboard focus and announcements, narrow screens, light/dark appearance, and reduced motion.

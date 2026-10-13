@@ -304,14 +304,24 @@
       }
     ];
 
+    function shuffleQuestions() {
+      const shuffled = [...questions];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled;
+    }
+
     const $ = (id) => document.getElementById(id);
+    let attemptQuestions = shuffleQuestions();
     let current = 0;
     let score = 0;
     let answered = false;
 
     function renderQuestion(focus = false) {
       answered = false;
-      const item = questions[current];
+      const item = attemptQuestions[current];
       $("question-number").textContent = current + 1;
       $("mission-status").textContent = "Awaiting input";
       $("score-counter").textContent = `${score} ${score === 1 ? "point" : "points"}`;
@@ -349,7 +359,7 @@
     function selectAnswer(index) {
       if (answered) return;
       answered = true;
-      const item = questions[current];
+      const item = attemptQuestions[current];
       const correct = index === item.answer;
       if (correct) score++;
       const buttons = Array.from($("options").children);
@@ -409,6 +419,7 @@
       else { current++; renderQuestion(true); }
     });
     $("restart").addEventListener("click", () => {
+      attemptQuestions = shuffleQuestions();
       current = 0;
       score = 0;
       $("results").hidden = true;
